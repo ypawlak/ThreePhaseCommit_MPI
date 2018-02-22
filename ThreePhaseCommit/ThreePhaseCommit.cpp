@@ -12,12 +12,6 @@
 #define MSG_SIZE 1
 #define COORD_RANK 0
 
-//#define STATE_QUERY 0
-//#define STATE_WAITING 1
-//#define STATE_PRECOMMIT 2
-//#define STATE_ABORT 3
-//#define STATE_COMMIT 4
-
 #define MSG_COMMIT_REQ 0
 #define MSG_AGREED 1
 #define MSG_ABORT 2
@@ -210,30 +204,19 @@ int main(int argc, char* argv[])
 	MPI_Comm_rank(MPI_COMM_WORLD, &NodeRank);
 	MPI_Comm_size(MPI_COMM_WORLD, &NodesCount);
 	MPI_Barrier(MPI_COMM_WORLD);
+	
 	if (NodeRank == COORD_RANK)
 	{
 		coordinatorProgram();
-		/*MPI_Request request;
-		int tag = MSG_COMMIT_REQ;
-		MPI_Isend(&tag, MSG_SIZE, MPI_INT, 1, MSG_COMMIT_REQ, MPI_COMM_WORLD, &request);*/
-
 	}
 	else
 	{
 		cohortProgram();
-		/*MPI_Request request;
-		int tag = MSG_COMMIT_REQ;
-		MPI_Isend(&tag, MSG_SIZE, MPI_INT, 0, MSG_COMMIT_REQ, MPI_COMM_WORLD, &request);*/
-		/*std::time_t result = std::time(nullptr);
-
-		char helloStr[12];
-		MPI_Recv(helloStr, _countof(helloStr), MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-		printf("Rank 1 received string %s from Rank 0\n", helloStr);*/
-		//int data;
-		//MPI_Recv(&data, MSG_SIZE, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 	}
+
 	MPI_Barrier(MPI_COMM_WORLD);
 	MPI_Finalize();
-    return 0;
+    
+	return 0;
 }
 
