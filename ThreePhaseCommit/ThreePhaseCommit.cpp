@@ -8,6 +8,7 @@
 #include <ctime>
 #include <iostream>
 #include <map>
+#include <Windows.h>
 
 #define MSG_SIZE 1
 #define COORD_RANK 0
@@ -22,8 +23,7 @@
 
 #define TIMEOUT 4
 
-#define FAIL_RANK -1
-#define FAIL_STATE -1
+#define FAIL_RANK 0
 
 enum States { QUERY, WAITING, PRECOMMIT, ABORT, COMMIT };
 
@@ -44,6 +44,8 @@ std::map<short, const char*> MSG_TAGS_DISPLAY = {
 	{ MSG_COMMIT, "COMMIT" }
 };
 
+
+const States FAIL_STATE = PRECOMMIT;
 
 int NodeRank;
 int NodesCount;
@@ -110,6 +112,9 @@ int waitForMessage(int tag, int source, int abortTag, int abortSource)
 		elapsed_secs = double(now - await_start) / CLOCKS_PER_SEC;
 	}
 
+	printNodeAndState();
+	std::cout << "*** TIMEOUT *** while waiting for <"<< MSG_TAGS_DISPLAY[tag]
+		<< "> from #" << source  << std::endl;
 	return MSG_TIMEOUT;
 }
 
@@ -138,13 +143,20 @@ bool receiveAllAckMessages(int okTag, int refuseTag)
 		now = clock();
 		elapsed_secs = double(now - await_start) / CLOCKS_PER_SEC;
 	}
-
+	if (ackCount < allCount)
+	{
+		printNodeAndState();
+		std::cout << "*** TIMEOUT *** while waiting for <" << MSG_TAGS_DISPLAY[okTag]
+			<< "> from some cohort" << std::endl;
+	}
 	return ackCount >= allCount;
 }
 
 void coordinatorProgram()
 {
 	while (true) {
+		if (NodeRank == FAIL_RANK && State == FAIL_STATE)
+			Sleep((TIMEOUT + 1) * 1000);
 		switch (State)
 		{
 			case QUERY:
@@ -203,6 +215,8 @@ void coordinatorProgram()
 void cohortProgram()
 {
 	while (true) {
+		if (NodeRank == FAIL_RANK && State == FAIL_STATE)
+			Sleep((TIMEOUT + 1) * 1000);
 		switch (State)
 		{
 			case QUERY:
