@@ -117,6 +117,35 @@ int waitForMessage(int tag = MPI_ANY_TAG, int source = MPI_ANY_SOURCE)
 	return MSG_TIMEOUT;
 }
 
+bool receiveAllAckMessages(int okTag, int refuseTag)
+{
+	int allCount = NodesCount - 1;
+	int ackCount = 0;
+	clock_t await_start = clock();
+	std::time_t now;
+	double elapsed_secs = 0;
+
+	while (elapsed_secs < TIMEOUT && ackCount < allCount)
+	{
+		while (probeMessage(okTag))
+		{
+			receiveMessage(okTag);
+			ackCount++;
+		}
+
+		if (probeMessage(refuseTag))
+		{
+			receiveMessage(refuseTag);
+			return false;
+		}
+
+		now = clock();
+		elapsed_secs = double(now - await_start) / CLOCKS_PER_SEC;
+	}
+
+	return ackCount >= allCount;
+}
+
 void coordinatorProgram()
 {
 	while (true) {
@@ -126,9 +155,20 @@ void coordinatorProgram()
 			{
 				coordBroadcast(MSG_COMMIT_REQ);
 				stateTransition(WAITING);
-				break;
 			}
 			case WAITING:
+			{
+				if (receiveAllAckMessages(MSG_AGREED, MSG_ABORT))
+				{
+					coordBroadcast(MSG_PREPARE);
+					stateTransition(PRECOMMIT);
+				}
+				else
+				{
+					coordBroadcast(MSG_ABORT);
+					stateTransition(PRECOMMIT);
+				}
+			}
 			case PRECOMMIT:
 			case COMMIT:
 			case ABORT:
