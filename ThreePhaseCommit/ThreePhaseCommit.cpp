@@ -93,7 +93,7 @@ void coordBroadcast(int tag)
 		sendMessage(tag, i);
 }
 
-int waitForMessage(int tag = MPI_ANY_TAG, int source = MPI_ANY_SOURCE)
+int waitForMessage(int tag, int source, int abortTag, int abortSource)
 {
 	clock_t await_start = clock();
 	std::time_t now;
@@ -103,6 +103,8 @@ int waitForMessage(int tag = MPI_ANY_TAG, int source = MPI_ANY_SOURCE)
 	{
 		if (probeMessage(tag, source))
 			return receiveMessage(tag, source);
+		if (probeMessage(abortTag, abortSource))
+			return receiveMessage(abortTag, abortSource);
 		
 		now = clock();
 		elapsed_secs = double(now - await_start) / CLOCKS_PER_SEC;
@@ -160,7 +162,7 @@ void coordinatorProgram()
 				else
 				{
 					coordBroadcast(MSG_ABORT);
-					stateTransition(PRECOMMIT);
+					stateTransition(ABORT);
 				}
 			}
 			case PRECOMMIT:
@@ -178,17 +180,34 @@ void cohortProgram()
 		{
 			case QUERY:
 			{
-				if (waitForMessage(MSG_COMMIT_REQ, COORD_RANK) == MSG_TIMEOUT)
+				switch (waitForMessage(MSG_COMMIT_REQ, COORD_RANK, MSG_ABORT, COORD_RANK))
 				{
-					stateTransition(ABORT);
-				}
-				else
-				{
-					sendMessage(MSG_AGREED);
-					stateTransition(WAITING);
+					case MSG_TIMEOUT:
+					case MSG_ABORT:
+						stateTransition(ABORT);
+						break;
+					default:
+					{
+						sendMessage(MSG_AGREED);
+						stateTransition(WAITING);
+					}
 				}
 			}
 			case WAITING:
+			{
+				switch (waitForMessage(MSG_PREPARE, COORD_RANK, MSG_ABORT, COORD_RANK))
+				{
+					case MSG_TIMEOUT:
+					case MSG_ABORT:
+						stateTransition(ABORT);
+						break;
+					default:
+					{
+						sendMessage(MSG_ACK);
+						stateTransition(PRECOMMIT);
+					}
+				}
+			}
 			case PRECOMMIT:
 			case COMMIT:
 			case ABORT:
