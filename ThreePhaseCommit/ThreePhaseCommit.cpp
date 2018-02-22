@@ -20,8 +20,10 @@
 #define MSG_COMMIT 5
 #define MSG_TIMEOUT -1000
 
-#define TIMEOUT 5
+#define TIMEOUT 4
 
+#define FAIL_RANK -1
+#define FAIL_STATE -1
 
 enum States { QUERY, WAITING, PRECOMMIT, ABORT, COMMIT };
 
@@ -87,8 +89,6 @@ int receiveMessage(int tag = MPI_ANY_TAG, int source = MPI_ANY_SOURCE)
 
 void coordBroadcast(int tag)
 {
-	printNodeAndState();
-	std::cout << NodeRank << " "<< NodesCount << std::endl;
 	for (int i = COORD_RANK + 1; i < NodesCount; i++)
 		sendMessage(tag, i);
 }
@@ -121,7 +121,7 @@ bool receiveAllAckMessages(int okTag, int refuseTag)
 	std::time_t now;
 	double elapsed_secs = 0;
 
-	while (elapsed_secs < TIMEOUT && ackCount < allCount)
+	while (elapsed_secs < (TIMEOUT * allCount) && ackCount < allCount)
 	{
 		while (probeMessage(okTag))
 		{
@@ -149,11 +149,16 @@ void coordinatorProgram()
 		{
 			case QUERY:
 			{
+				/*printNodeAndState();
+				std::cout << "executing state QUERY" << std::endl;*/
 				coordBroadcast(MSG_COMMIT_REQ);
 				stateTransition(WAITING);
+				break;
 			}
 			case WAITING:
 			{
+				/*printNodeAndState();
+				std::cout << "executing state WAITING" << std::endl;*/
 				if (receiveAllAckMessages(MSG_AGREED, MSG_ABORT))
 				{
 					coordBroadcast(MSG_PREPARE);
@@ -164,11 +169,33 @@ void coordinatorProgram()
 					coordBroadcast(MSG_ABORT);
 					stateTransition(ABORT);
 				}
+				break;
 			}
 			case PRECOMMIT:
+			{
+				/*printNodeAndState();
+				std::cout << "executing state PRECOMMIT" << std::endl;*/
+				if (receiveAllAckMessages(MSG_ACK, MSG_ABORT))
+				{
+					coordBroadcast(MSG_COMMIT);
+					stateTransition(COMMIT);
+				}
+				else
+				{
+					coordBroadcast(MSG_ABORT);
+					stateTransition(ABORT);
+				}
+				break;
+			}
 			case COMMIT:
 			case ABORT:
+			{
+				/*printNodeAndState();
+				std::cout << "executing state ABORT/COMMIT" << std::endl;*/
+				printNodeAndState();
+				std::cout << "FINISHED" << std::endl;
 				return;
+			}
 		}
 	}
 }
@@ -180,6 +207,8 @@ void cohortProgram()
 		{
 			case QUERY:
 			{
+				/*printNodeAndState();
+				std::cout << "executing state QUERY" << std::endl;*/
 				switch (waitForMessage(MSG_COMMIT_REQ, COORD_RANK, MSG_ABORT, COORD_RANK))
 				{
 					case MSG_TIMEOUT:
@@ -190,11 +219,15 @@ void cohortProgram()
 					{
 						sendMessage(MSG_AGREED);
 						stateTransition(WAITING);
+						break;
 					}
 				}
+				break;
 			}
 			case WAITING:
 			{
+				/*printNodeAndState();
+				std::cout << "executing state WAITING" << std::endl;*/
 				switch (waitForMessage(MSG_PREPARE, COORD_RANK, MSG_ABORT, COORD_RANK))
 				{
 					case MSG_TIMEOUT:
@@ -205,13 +238,37 @@ void cohortProgram()
 					{
 						sendMessage(MSG_ACK);
 						stateTransition(PRECOMMIT);
+						break;
 					}
 				}
+				break;
 			}
 			case PRECOMMIT:
+			{
+				/*printNodeAndState();
+				std::cout << "executing state PRECOMMIT" << std::endl;*/
+				switch (waitForMessage(MSG_COMMIT, COORD_RANK, MSG_ABORT, COORD_RANK))
+				{
+					case MSG_ABORT:
+						stateTransition(ABORT);
+						break;
+					default:
+					{
+						stateTransition(COMMIT);
+						break;
+					}
+				}
+				break;
+			}
 			case COMMIT:
 			case ABORT:
+			{
+				/*printNodeAndState();
+				std::cout << "executing state ABORT/COMMIT" << std::endl;*/
+				printNodeAndState();
+				std::cout << "FINISHED" << std::endl;
 				return;
+			}
 		}
 	}
 }
@@ -228,7 +285,7 @@ int main(int argc, char* argv[])
 	{
 		coordinatorProgram();
 	}
-	else
+	else //if(NodeRank != 1)
 	{
 		cohortProgram();
 	}
