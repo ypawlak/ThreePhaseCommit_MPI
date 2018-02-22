@@ -23,7 +23,7 @@
 
 #define TIMEOUT 4
 
-#define FAIL_RANK 0
+#define FAIL_RANK 1
 
 enum States { QUERY, WAITING, PRECOMMIT, ABORT, COMMIT };
 
@@ -45,7 +45,7 @@ std::map<short, const char*> MSG_TAGS_DISPLAY = {
 };
 
 
-const States FAIL_STATE = PRECOMMIT;
+const States FAIL_STATE = WAITING;
 
 int NodeRank;
 int NodesCount;
@@ -126,7 +126,7 @@ bool receiveAllAckMessages(int okTag, int refuseTag)
 	std::time_t now;
 	double elapsed_secs = 0;
 
-	while (elapsed_secs < (TIMEOUT * allCount) && ackCount < allCount)
+	while (elapsed_secs < (TIMEOUT) && ackCount < allCount)
 	{
 		while (probeMessage(okTag))
 		{
@@ -143,12 +143,14 @@ bool receiveAllAckMessages(int okTag, int refuseTag)
 		now = clock();
 		elapsed_secs = double(now - await_start) / CLOCKS_PER_SEC;
 	}
+
 	if (ackCount < allCount)
 	{
 		printNodeAndState();
 		std::cout << "*** TIMEOUT *** while waiting for <" << MSG_TAGS_DISPLAY[okTag]
 			<< "> from some cohort" << std::endl;
 	}
+
 	return ackCount >= allCount;
 }
 
